@@ -8,7 +8,6 @@ import datetime
 import json
 import sqlite3
 import subprocess
-import sys
 import time
 
 OP_MODE = False
@@ -30,18 +29,18 @@ FAILED_TEXT = "0"
 NOT_MEASURED_REAL = -1
 NOT_MEASURED_TEXT = "-1"
 
-TABLE_FORMAT = {
-    "date": "TEXT",
-    "hour": "TEXT",
-    "main_name": "TEXT",
-    "ping_main": "REAL",
-    "download_main": "REAL",
-    "upload_main": "REAL",
-    "backup_name": "TEXT",
-    "ping_backup": "REAL",
-    "download_backup": "REAL",
-    "upload_backup": "REAL"
-}
+TABLE_FORMAT = (
+    ("date", "TEXT"),
+    ("hour", "TEXT"),
+    ("main_name", "TEXT")
+    ("ping_main", "REAL")
+    ("download_main", "REAL")
+    ("upload_main", "REAL")
+    ("backup_name", "TEXT")
+    ("ping_backup", "REAL")
+    ("download_backup", "REAL")
+    ("upload_backup", "REAL")
+)
 PRIMARY_KEY = "(date, hour)"
 TABLE_NAME = "records"
 
@@ -124,9 +123,9 @@ def create_table():
         return -1
     c = connection.cursor()
     fields = ", ".join(["{} {}".format(f, t)
-                        for (f, t) in TABLE_FORMAT.items()])
+                        for (f, t) in TABLE_FORMAT])
     create_query = ("CREATE TABLE IF NOT EXISTS {} ({}, PRIMARY KEY {})"
-                    .format(TABLE_NAME, fields, PRIMARY_KEY))
+        .format(TABLE_NAME, fields, PRIMARY_KEY))
     try:
         c.execute(create_query)
         connection.commit()
@@ -153,7 +152,6 @@ def test_network(connection):
         ping_main = json_results[PING_JSON_FIELD]
         download_main = json_results[DOWNLOAD_JSON_FIELD]
         upload_main = json_results[UPLOAD_JSON_FIELD]
-        name_backup = NOT_MEASURED_TEXT
         ping_backup = NOT_MEASURED_REAL
         download_backup = NOT_MEASURED_REAL
         upload_backup = NOT_MEASURED_REAL
@@ -237,18 +235,19 @@ def main():
 
 
 if __name__ == "__main__":
-	if OP_MODE:
-		import sys
-		n = len(sys.argv)
-		if n == 1 or (n == 2 and sys.argv[1].strip().lower() == "run"):
-			main()
-		elif n == 2 and sys.argv[1].strip().lower() == "create":
-			create_table()
-		elif n == 2 and sys.argv[1].strip().lower() == "clean":
-			clean()
-		else:
-			print(
-				"[LAUNCHER] Invalid use of the script:\n"
-				"    network_record.py [run (default) | create | clean]")
-	else:
-		main()
+    if OP_MODE:
+        import sys
+
+        n = len(sys.argv)
+        if n == 1 or (n == 2 and sys.argv[1].strip().lower() == "run"):
+            main()
+        elif n == 2 and sys.argv[1].strip().lower() == "create":
+            create_table()
+        elif n == 2 and sys.argv[1].strip().lower() == "clean":
+            clean()
+        else:
+            print(
+                "[LAUNCHER] Invalid use of the script:\n"
+                "    network_record.py [run (default) | create | clean]")
+    else:
+        main()
