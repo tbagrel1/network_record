@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+OP_MODE = False
+
 DEBUG_LEVEL = 2
 FANCY_LEVEL = {
     0: "E",
@@ -43,6 +45,7 @@ TABLE_FORMAT = {
 PRIMARY_KEY = "(date, hour)"
 TABLE_NAME = "records"
 
+BASE_DIR = "/home/pi/network_record/"
 MAIN_SERVER = 13661  # Vialis, Woippy
 NAME_MAIN = "Vialis, Woopy"
 BACKUP_SERVER = 4997  # inexio, Saarlouis
@@ -53,9 +56,9 @@ DELAY = 15 * 60  # Delay between two measures in seconds
 DOWNLOAD_JSON_FIELD = "download"
 UPLOAD_JSON_FIELD = "upload"
 PING_JSON_FIELD = "ping"
-DATABASE_PATH = "./network_record.db"
-START_STOP_PATH = "./network_record_start_stop"
-LOG_PATH = "./network_record.log"
+DATABASE_PATH = BASE_DIR + "network_record.db"
+START_STOP_PATH = BASE_DIR + "network_record_start_stop"
+LOG_PATH = BASE_DIR + "network_record.log"
 START_STATE = "start"
 STOP_STATE = "stop"
 ENC = "utf-8"
@@ -234,14 +237,18 @@ def main():
 
 
 if __name__ == "__main__":
-    n = len(sys.argv)
-    if n == 1 or (n == 2 and sys.argv[1].strip().lower() == "run"):
-        main()
-    elif n == 2 and sys.argv[1].strip().lower() == "create":
-        create_table()
-    elif n == 2 and sys.argv[1].strip().lower() == "clean":
-        clean()
-    else:
-        print(
-            "[LAUNCHER] Invalid use of the script:\n"
-            "    network_record.py [run (default) | create | clean]")
+	if OP_MODE:
+		import sys
+		n = len(sys.argv)
+		if n == 1 or (n == 2 and sys.argv[1].strip().lower() == "run"):
+			main()
+		elif n == 2 and sys.argv[1].strip().lower() == "create":
+			create_table()
+		elif n == 2 and sys.argv[1].strip().lower() == "clean":
+			clean()
+		else:
+			print(
+				"[LAUNCHER] Invalid use of the script:\n"
+				"    network_record.py [run (default) | create | clean]")
+	else:
+		main()
