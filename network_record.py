@@ -4,11 +4,11 @@
 """Tests network speed each DELAY seconds and uploads results on the
 specified database."""
 
-import subprocess
 import datetime
-import sqlite3
-import time
 import json
+import sqlite3
+import subprocess
+import time
 
 DEBUG_LEVEL = 3
 FANCY_LEVEL = {
@@ -44,13 +44,15 @@ TABLE_NAME = "records"
 MAIN_SERVER = 13661  # Vialis, Woippy
 BACKUP_SERVER = 4997  # inexio, Saarlouis
 TIMEOUT = 10  # Timeout time in seconds
-DELAY = 10 * 60  # Delay between two measures in seconds
+# DELAY = 10 * 60  # Delay between two measures in seconds
+DELAY = 30  # Delay between two measures in seconds
 DOWNLOAD_JSON_FIELD = "download"
 UPLOAD_JSON_FIELD = "upload"
 PING_JSON_FIELD = "ping"
 NAME_JSON_FIELD = "name"
-DATABASE_PATH = "./network_records.db"
-START_STOP_PATH = "./record_start_stop"
+DATABASE_PATH = "./network_record.db"
+START_STOP_PATH = "./network_record_start_stop"
+LOG_PATH = "./network_record.log"
 START_STATE = "start"
 STOP_STATE = "stop"
 ENC = "utf-8"
@@ -58,10 +60,13 @@ ENC = "utf-8"
 CMD = ["speedtest-cli", "--json", "--server", "", "--timeout", TIMEOUT]
 SERVER_POSITION = 3
 
+
 def print_debug(level, msg):
     """Prints msg iif DEBUG_LEVEL >= level"""
     if DEBUG_LEVEL >= level:
-        print("[{}] {}".format(FANCY_LEVEL[level], msg))
+        with open(LOG_PATH, "a", encoding=ENC) as log_file:
+            log_file.write("[{}] {}\n".format(FANCY_LEVEL[level], msg))
+
 
 def database_connect():
     """Returns database object if possible."""
@@ -72,6 +77,7 @@ def database_connect():
         print_debug(0, "Unable to connect database: <{}>".format(e))
         return None
 
+
 def create_network_records_table():
     """Creates for the first time the record table."""
     connection = database_connect()
@@ -80,7 +86,7 @@ def create_network_records_table():
     c = connection.cursor()
     fields = ", ".join(["{} {}".format(f, t) for (f, t) in TABLE_FORMAT])
     create_query = ("CREATE TABLE IF NOT EXISTS {} ({}, PRIMARY KEY {})"
-                    .format(TABLE_NAME, fields, PRIMARY_KEY))
+        .format(TABLE_NAME, fields, PRIMARY_KEY))
     try:
         c.execute(create_query)
         connection.commit()
@@ -91,6 +97,7 @@ def create_network_records_table():
         connection.close()
     print_debug(2, "Table successfully created!")
     return 0
+
 
 def test_network(connection):
     """Tests internet connection."""
@@ -139,13 +146,14 @@ def test_network(connection):
     print_debug(3, "New record: <{}>".format(record))
     c = connection.cursor()
     try:
-        insert_query = ""  # TODO: write query
+        insert_query = "INSERT INTO {} VALUES {}".format(TABLE_NAME, record)
         c.execute(insert_query)
         connection.commit()
     except Exception as e:
         print_debug(0, "Unable to commit new record: <{}>".format(e))
         return -1
     return 0
+
 
 def main():
     """Main function."""
@@ -155,24 +163,37 @@ def main():
     stop = False
     with open(START_STOP_PATH, "w", encoding=ENC) as start_stop_file:
         start_stop_file.write(START_STATE)
-    while not stop:
-        r = test_network(connection)
-        if r != 0:
-            return 2
-        time.sleep(DELAY)
-        # get running state
-        try:
-            with open(START_STOP_PATH, "r", encoding=ENC) as start_stop_file:
-                state = start_stop_file.read().strip().lower()
-            if state != START_STATE:
-                stop = True
-        except Exception as e:
-            print_debug(
-                0, "Unable to get running state: <{}>".format(e))
-            return 1
-    with open(START_STOP_PATH, "w", encoding=ENC) as start_stop_file:
-        start_stop_file.write(STOP_STATE)
+    try:
+        while not stop:
+            r = test_network(connection)
+            if r != 0:
+                return 2
+            time.sleep(DELAY)
+            try:
+                with open(START_STOP_PATH, "r", encoding=ENC) as \
+                        start_stop_file:
+                    state = start_stop_file.read().strip().lower()
+                if state != START_STATE:
+                    print_debug(
+                        2, "Stopping loop (start stop file-triggered)")
+                    stop = True
+            except Exception as e:
+                print_debug(
+                    0, "Unable to get running state: <{}>".format(e))
+                with open(START_STOP_PATH, "w", encoding=ENC) as \
+                        start_stop_file:
+                    start_stop_file.write(STOP_STATE)
+                connection.close()
+                return 1
+    except KeyboardInterrupt:
+        print_debug(
+            2, "Stopping loop (keyboard interrupt-triggered)")
+    finally:
+        with open(START_STOP_PATH, "w", encoding=ENC) as start_stop_file:
+            start_stop_file.write(STOP_STATE)
+        connection.close()
     return 0
+
 
 if __name__ == "__main__":
     main()
