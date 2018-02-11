@@ -32,13 +32,13 @@ NOT_MEASURED_TEXT = "-1"
 TABLE_FORMAT = (
     ("date", "TEXT"),
     ("hour", "TEXT"),
-    ("main_name", "TEXT")
-    ("ping_main", "REAL")
-    ("download_main", "REAL")
-    ("upload_main", "REAL")
-    ("backup_name", "TEXT")
-    ("ping_backup", "REAL")
-    ("download_backup", "REAL")
+    ("main_name", "TEXT"),
+    ("ping_main", "REAL"),
+    ("download_main", "REAL"),
+    ("upload_main", "REAL"),
+    ("backup_name", "TEXT"),
+    ("ping_backup", "REAL"),
+    ("download_backup", "REAL"),
     ("upload_backup", "REAL")
 )
 PRIMARY_KEY = "(date, hour)"
