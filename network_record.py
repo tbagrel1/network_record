@@ -8,14 +8,16 @@ import datetime
 import json
 import sqlite3
 import subprocess
+import sys
 import time
 
-DEBUG_LEVEL = 3
+DEBUG_LEVEL = 2
 FANCY_LEVEL = {
     0: "E",
     1: "W",
     2: "I",
     3: "L",
+    4: "D",
 }
 
 DATE_FORMAT = "%Y-%m-%d"
@@ -42,14 +44,15 @@ PRIMARY_KEY = "(date, hour)"
 TABLE_NAME = "records"
 
 MAIN_SERVER = 13661  # Vialis, Woippy
+NAME_MAIN = "Vialis, Woopy"
 BACKUP_SERVER = 4997  # inexio, Saarlouis
+NAME_BACKUP = "inexio, Saarlouis"
 TIMEOUT = 10  # Timeout time in seconds
-# DELAY = 10 * 60  # Delay between two measures in seconds
-DELAY = 30  # Delay between two measures in seconds
+DELAY = 15 * 60  # Delay between two measures in seconds
+# DELAY = 30  # Delay between two measures in seconds
 DOWNLOAD_JSON_FIELD = "download"
 UPLOAD_JSON_FIELD = "upload"
 PING_JSON_FIELD = "ping"
-NAME_JSON_FIELD = "name"
 DATABASE_PATH = "./network_record.db"
 START_STOP_PATH = "./network_record_start_stop"
 LOG_PATH = "./network_record.log"
@@ -57,15 +60,20 @@ START_STATE = "start"
 STOP_STATE = "stop"
 ENC = "utf-8"
 
-CMD = ["speedtest-cli", "--json", "--server", "", "--timeout", TIMEOUT]
+CMD = ["speedtest-cli", "--json", "--server", "", "--timeout", str(TIMEOUT)]
 SERVER_POSITION = 3
+CLEAR_CMD = ["rm", ""]
+PATH_POSITION = 1
 
 
-def print_debug(level, msg):
+def print_debug(level, msg, in_log_file=True):
     """Prints msg iif DEBUG_LEVEL >= level"""
     if DEBUG_LEVEL >= level:
-        with open(LOG_PATH, "a", encoding=ENC) as log_file:
-            log_file.write("[{}] {}\n".format(FANCY_LEVEL[level], msg))
+        fancy_msg = "[{}] {}".format(FANCY_LEVEL[level], msg)
+        print(fancy_msg)
+        if in_log_file:
+            with open(LOG_PATH, "a", encoding=ENC) as log_file:
+                log_file.write("{}\n".format(fancy_msg))
 
 
 def database_connect():
@@ -78,15 +86,44 @@ def database_connect():
         return None
 
 
-def create_network_records_table():
+def clean():
+    """Completely REMOVES previous database files."""
+    r = 0
+    try:
+        CLEAR_CMD[PATH_POSITION] = START_STOP_PATH
+        subprocess.check_call(CLEAR_CMD)
+        print_debug(2, "Start stop file successfully removed", False)
+    except Exception as e:
+        r = r << 1 + 1
+        print_debug(1, "Unable to remove start stop file: <{}>".format(e),
+                    False)
+    try:
+        CLEAR_CMD[PATH_POSITION] = LOG_PATH
+        subprocess.check_call(CLEAR_CMD)
+        print_debug(2, "Log file successfully removed", False)
+    except Exception as e:
+        r = r << 1 + 1
+        print_debug(1, "Unable to remove Log file: <{}>".format(e), False)
+    try:
+        CLEAR_CMD[PATH_POSITION] = DATABASE_PATH
+        subprocess.check_call(CLEAR_CMD)
+        print_debug(2, "Database file successfully removed", False)
+    except Exception as e:
+        r = r << 1 + 1
+        print_debug(1, "Unable to remove database file: <{}>".format(e), False)
+    return r
+
+
+def create_table():
     """Creates for the first time the record table."""
     connection = database_connect()
     if connection is None:
         return -1
     c = connection.cursor()
-    fields = ", ".join(["{} {}".format(f, t) for (f, t) in TABLE_FORMAT])
+    fields = ", ".join(["{} {}".format(f, t)
+                        for (f, t) in TABLE_FORMAT.items()])
     create_query = ("CREATE TABLE IF NOT EXISTS {} ({}, PRIMARY KEY {})"
-        .format(TABLE_NAME, fields, PRIMARY_KEY))
+                    .format(TABLE_NAME, fields, PRIMARY_KEY))
     try:
         c.execute(create_query)
         connection.commit()
@@ -101,15 +138,15 @@ def create_network_records_table():
 
 def test_network(connection):
     """Tests internet connection."""
-    now = datetime.now()
+    now = datetime.datetime.now()
     date = now.strftime(DATE_FORMAT)
     hour = now.strftime(HOUR_FORMAT)
-    CMD[SERVER_POSITION] = MAIN_SERVER
-    result = subprocess.check_output(
-        CMD, stderr=subprocess.STDOUT).decode(ENC)
+    CMD[SERVER_POSITION] = str(MAIN_SERVER)
     try:
+        result = subprocess.check_output(
+            CMD, stderr=subprocess.STDOUT).decode(ENC)
+        print_debug(4, "Main result: {}".format(result))
         json_results = json.loads(result)
-        name_main = json_results[NAME_JSON_FIELD]
         ping_main = json_results[PING_JSON_FIELD]
         download_main = json_results[DOWNLOAD_JSON_FIELD]
         upload_main = json_results[UPLOAD_JSON_FIELD]
@@ -120,29 +157,27 @@ def test_network(connection):
     except Exception as e:
         print_debug(
             1, "Unable to get results from main server: <{}>".format(e))
-        name_main = FAILED_TEXT
         ping_main = FAILED_REAL
         download_main = FAILED_REAL
         upload_main = FAILED_REAL
-        CMD[SERVER_POSITION] = BACKUP_SERVER
-        result = subprocess.check_output(
-            CMD, stderr=subprocess.STDOUT).decode(ENC)
+        CMD[SERVER_POSITION] = str(BACKUP_SERVER)
         try:
+            result = subprocess.check_output(
+                CMD, stderr=subprocess.STDOUT).decode(ENC)
+            print_debug(4, "Backup result: {}".format(result))
             json_results = json.loads(result)
-            name_backup = json_results[NAME_JSON_FIELD]
             ping_backup = json_results[PING_JSON_FIELD]
             download_backup = json_results[DOWNLOAD_JSON_FIELD]
             upload_backup = json_results[UPLOAD_JSON_FIELD]
         except Exception as e:
             print_debug(
                 1, "Unable to get results from backup server: <{}>".format(e))
-            name_backup = FAILED_TEXT
             ping_backup = FAILED_REAL
             download_backup = FAILED_REAL
             upload_backup = FAILED_REAL
     record = (
-        date, hour, name_main, ping_main, download_main, upload_main,
-        name_backup, ping_backup, download_backup, upload_backup)
+        date, hour, NAME_MAIN, ping_main, download_main, upload_main,
+        NAME_BACKUP, ping_backup, download_backup, upload_backup)
     print_debug(3, "New record: <{}>".format(record))
     c = connection.cursor()
     try:
@@ -160,6 +195,7 @@ def main():
     connection = database_connect()
     if connection is None:
         return -1
+    print_debug(2, "Connection to the database established!")
     stop = False
     with open(START_STOP_PATH, "w", encoding=ENC) as start_stop_file:
         start_stop_file.write(START_STATE)
@@ -184,6 +220,7 @@ def main():
                         start_stop_file:
                     start_stop_file.write(STOP_STATE)
                 connection.close()
+                print_debug(2, "Connection to the database closed.")
                 return 1
     except KeyboardInterrupt:
         print_debug(
@@ -192,8 +229,19 @@ def main():
         with open(START_STOP_PATH, "w", encoding=ENC) as start_stop_file:
             start_stop_file.write(STOP_STATE)
         connection.close()
+        print_debug(2, "Connection to the database closed.")
     return 0
 
 
 if __name__ == "__main__":
-    main()
+    n = len(sys.argv)
+    if n == 1 or (n == 2 and sys.argv[1].strip().lower() == "run"):
+        main()
+    elif n == 2 and sys.argv[1].strip().lower() == "create":
+        create_table()
+    elif n == 2 and sys.argv[1].strip().lower() == "clean":
+        clean()
+    else:
+        print(
+            "[LAUNCHER] Invalid use of the script:\n"
+            "    network_record.py [run (default) | create | clean]")
