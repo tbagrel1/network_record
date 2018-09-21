@@ -1,0 +1,11 @@
+__pycache__
+.mypy_cache
+data_gathered.png
+mesures.txt
+network_record.sh
+network_record_getdb.sh
+network_record_plot.py
+temp.sh
+.idea
+**/.directory
+
